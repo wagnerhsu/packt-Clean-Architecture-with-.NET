@@ -1,4 +1,4 @@
-﻿using Azure.Core;
+using Azure.Core;
 using Azure.Identity;
 
 namespace Presentation.BSA.Extensions;
@@ -43,8 +43,7 @@ public static class ConfigurationBuilderExtensions
         // Create a token credential to authenticate requests to the Key Vault
         TokenCredential tokenCredential = environment switch
         {
-            "Development" => new VisualStudioCredential(), // Uses VS credentials for local development
-            "test" => new VisualStudioCredential(), // Uses VS credentials for local testing
+            "Development" or "test" => new VisualStudioCredential(), // Uses VS credentials for local development and testing
             _ => new ManagedIdentityCredential() // Recommended for Azure-hosted environments
         };
 

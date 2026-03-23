@@ -17,39 +17,35 @@
 .PARAMETER WorkingDirectory
     The root directory of the solution or repository where EF projects can be discovered. Defaults to "./".
 
-.PARAMETER ConnectionString
-    (Optional) A SQL Server connection string used to check if the __EFMigrationsHistory table exists, which helps determine
-    whether the database is new or partially initialized.
-
 .PARAMETER AddMigration
     (Optional) If specified, the script will add the migration if it doesn't already exist before applying it.
 
 .PARAMETER ResetDatabase
     (Optional) If specified, all tables in the database will be dropped before applying migrations.
-    This is only permitted in safe environments (dev, qa, ppe). Requires -ConnectionString.
+    This is only permitted in Development and dev environments.
 
 .EXAMPLE
-    # Run this in CI or locally to apply all pending migrations in Development.
+    # Run this locally using your Development environment (local Key Vault)
     ./scripts/Start-EFMigration.ps1 -Environment Development
 
 .EXAMPLE
-    # Create a new migration if it doesn't exist and apply it
-    ./scripts/Start-EFMigration.ps1 -Environment Development -MigrationName "NewFeatureMigration" -AddMigration
+    # Create a new migration if it doesn't exist and apply it in dev
+    ./scripts/Start-EFMigration.ps1 -Environment dev -MigrationName "NewFeatureMigration" -AddMigration
 
 .EXAMPLE
-    # Run this in a controlled environment to apply up to a specific migration
-    ./scripts/Start-EFMigration.ps1 -Environment qa -MigrationName "AddProductTable"
+    # Apply a specific migration in the dev environment
+    ./scripts/Start-EFMigration.ps1 -Environment dev -MigrationName "AddProductTable"
 
 .EXAMPLE
-    # Reset the dev database and re-apply all existing migrations
-    ./scripts/Start-EFMigration.ps1 -Environment dev -ResetDatabase -ConnectionString "Server=...;Database=..." -WorkingDirectory "./"
+    # Reset the dev database and re-apply all migrations using Key Vault connection string
+    ./scripts/Start-EFMigration.ps1 -Environment dev -ResetDatabase
 #>
 [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'High')]
 param(
+    [ValidateSet("Development","dev")]
     [string]$Environment = "Development",
     [string]$MigrationName = "",
     [string]$WorkingDirectory = "./",
-    [string]$ConnectionString = "",
     [switch]$AddMigration,
     [Switch]$ResetDatabase
 )
@@ -77,6 +73,16 @@ function Write-Warning {
 function Write-Info {
     param ([string]$Message)
     Write-Host "##[command] [INFO] $Message" -ForegroundColor Cyan
+}
+
+function Get-KeyVaultName {
+    param([string]$Environment)
+
+    switch ($Environment.ToLower()) {
+        "development" { "podyssey-local" }
+        "dev"         { "podyssey-dev" }
+        default       { "podyssey-local" }
+    }
 }
 
 function Test-MigrationHistoryExists {
@@ -116,6 +122,23 @@ try {
     Write-Info "Setting ASPNETCORE_ENVIRONMENT to $Environment"
     $env:ASPNETCORE_ENVIRONMENT = $Environment
 
+    # ------------------------------------------------------------
+    # Retrieve connection string from Key Vault via helper
+    # ------------------------------------------------------------
+    $keyVaultName = Get-KeyVaultName -Environment $Environment
+    $helperPath = Join-Path $PSScriptRoot "helpers/Get-KeyVaultConnectionString.ps1"
+
+    if (-not (Test-Path $helperPath)) {
+        ExitOnError "Helper script not found: $helperPath"
+    }
+
+    Write-Info "Retrieving connection string from Key Vault '$keyVaultName'..."
+    $ConnectionString = & $helperPath -KeyVaultName $keyVaultName
+
+    if (-not $ConnectionString) {
+        ExitOnError "Failed to retrieve connection string from Key Vault."
+    }
+
     $sqlProjectFilter = "*Infrastructure.csproj"
     $startupProjectFilter = "*Presentation.BSA.csproj"
 
@@ -128,18 +151,16 @@ try {
     Write-Success "EF Project: $($sqlProject.FullName)"
     Write-Success "Startup Project: $($startupProject.FullName)"
 
-    $migrationHistoryExists = $false
-    if (-not [string]::IsNullOrWhiteSpace($ConnectionString)) {
-        Write-Info "Checking __EFMigrationsHistory via ADO.NET..."
-        $migrationHistoryExists = Test-MigrationHistoryExists -ConnectionString $ConnectionString
-        if ($migrationHistoryExists) {
-            Write-Success "__EFMigrationsHistory table found."
-        } else {
-            Write-Warning "__EFMigrationsHistory table not found — assuming fresh database."
-        }
+    Write-Info "Checking __EFMigrationsHistory via ADO.NET..."
+    $migrationHistoryExists = Test-MigrationHistoryExists -ConnectionString $ConnectionString
+
+    if ($migrationHistoryExists) {
+        Write-Success "__EFMigrationsHistory table found."
+    } else {
+        Write-Warning "__EFMigrationsHistory table not found — assuming fresh database."
     }
 
-    Write-Info "Getting EF migration list..."
+        Write-Info "Getting EF migration list..."
     $migrationOutput = dotnet ef migrations list --project "$($sqlProject.FullName)" --startup-project "$($startupProject.FullName)" -- --environment $Environment 2>&1
     if ($migrationOutput -match "Build failed" -or $migrationOutput -match "No DbContext was found") {
         ExitOnError "Migration list check failed: $migrationOutput"

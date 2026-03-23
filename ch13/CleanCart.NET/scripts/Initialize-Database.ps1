@@ -18,112 +18,24 @@ if (-not (Test-Path "./CleanCart.NET.sln")) {
 $keyVaultName = "podyssey-local"
 $secretName = "SqlServer--ConnectionString"
 
-Write-Host "Preparing Azure authentication..."
+# ------------------------------------------------------------
+# Retrieve connection string via helper
+# ------------------------------------------------------------
+$helperPath = Join-Path $PSScriptRoot "helpers/Get-KeyVaultConnectionString.ps1"
 
-# Ensure Azure CLI exists
-if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
-    Write-Error "Azure CLI is required but not installed."
-    Write-Error "Install it from: https://learn.microsoft.com/cli/azure/install-azure-cli"
+if (-not (Test-Path $helperPath)) {
+    Write-Error "Helper script not found: $helperPath"
     exit 1
 }
 
-# ------------------------------------------------------------
-# Tenant Configuration (cached locally)
-# ------------------------------------------------------------
-$configDir = Join-Path $PSScriptRoot ".config"
-$tenantFile = Join-Path $configDir "tenant-id"
-
-if (-not (Test-Path $configDir)) {
-    New-Item -ItemType Directory -Path $configDir | Out-Null
-}
-
-if (Test-Path $tenantFile) {
-    $tenantId = Get-Content $tenantFile
-    Write-Host "Using cached Azure tenant: $tenantId" -ForegroundColor Green
-}
-else {
-
-    Write-Host ""
-    Write-Host "------------------------------------------------------------"
-    Write-Host "Azure Authentication"
-    Write-Host "------------------------------------------------------------"
-    Write-Host "Enter the Azure Tenant ID that contains your Key Vault."
-    Write-Host "You can find this in the Azure Portal under:"
-    Write-Host "Azure Active Directory → Overview → Directory ID"
-    Write-Host ""
-
-    $tenantId = Read-Host "Tenant ID (Directory ID)"
-
-    if (-not $tenantId) {
-        Write-Error "Tenant ID is required."
-        exit 1
-    }
-
-    $tenantId | Out-File $tenantFile
-    Write-Host "Tenant ID saved for future runs." -ForegroundColor Yellow
-}
-
-# ------------------------------------------------------------
-# Azure Authentication
-# ------------------------------------------------------------
-Write-Host ""
-Write-Host "Signing into Azure tenant $tenantId..."
-
-az login --tenant $tenantId | Out-Null
-
-# ------------------------------------------------------------
-# Locate the correct subscription automatically
-# ------------------------------------------------------------
-Write-Host "Searching for Key Vault '$keyVaultName'..."
-
-$subscriptions = az account list --query "[].id" --output tsv
-
-$keyVaultSubscription = $null
-
-foreach ($sub in $subscriptions) {
-
-    az account set --subscription $sub | Out-Null
-
-    $exists = az keyvault show `
-        --name $keyVaultName `
-        --query name `
-        --output tsv 2>$null
-
-    if ($exists) {
-        $keyVaultSubscription = $sub
-        break
-    }
-}
-
-if (-not $keyVaultSubscription) {
-    Write-Error "Could not locate Key Vault '$keyVaultName' in any accessible subscription."
-    Write-Error "Ensure the vault exists and your Azure account has access."
-    exit 1
-}
-
-az account set --subscription $keyVaultSubscription
-
-$subscriptionName = az account show --query name --output tsv
-
-Write-Host "Using subscription: $subscriptionName" -ForegroundColor Green
-
-# ------------------------------------------------------------
-# Retrieve connection string
-# ------------------------------------------------------------
-Write-Host "Retrieving connection string from Azure Key Vault..."
-
-$connString = az keyvault secret show `
-    --vault-name $keyVaultName `
-    --name $secretName `
-    --query value `
-    --output tsv
+$connString = & $helperPath `
+    -KeyVaultName $keyVaultName `
+    -SecretName $secretName
 
 if (-not $connString) {
-    Write-Error "Failed to retrieve secret '$secretName' from Key Vault."
+    Write-Error "Failed to retrieve connection string from helper."
     exit 1
 }
-
-Write-Host "Connection string retrieved successfully." -ForegroundColor Green
 
 # ------------------------------------------------------------
 # Parse Connection String
