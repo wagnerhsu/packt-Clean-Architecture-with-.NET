@@ -2,6 +2,7 @@
 using MediatR;
 using Microsoft.Extensions.Logging;
 using System.Diagnostics;
+using Infrastructure.Helpers;
 
 namespace Infrastructure.MediatR;
 
@@ -37,7 +38,7 @@ public class MetricsAndLoggingPipelineBehavior<TRequest, TResponse> : IPipelineB
     /// <returns>The response from the request handler.</returns>
     public async Task<TResponse> Handle(TRequest request, RequestHandlerDelegate<TResponse> next, CancellationToken cancellationToken)
     {
-        var requestName = GetFriendlyName(typeof(TRequest));
+        var requestName = TypeNameHelper.GetFriendlyName(typeof(TRequest));
         var isDebugMode = _logger.IsEnabled(LogLevel.Debug);
 
         if (isDebugMode)
@@ -93,27 +94,5 @@ public class MetricsAndLoggingPipelineBehavior<TRequest, TResponse> : IPipelineB
 
             throw;
         }
-    }
-
-    /// <summary>
-    /// Gets the name of a type, handling generic types gracefully by including their type arguments.
-    /// </summary>
-    /// <param name="type">The type to get the name for.</param>
-    /// <returns>A string representation of the type name, including generic type arguments if applicable.</returns>
-    /// <exception cref="ArgumentNullException">Thrown if the provided <paramref name="type"/> is null.</exception>
-    public string GetFriendlyName(Type type)
-    {
-        if (type == null)
-            throw new ArgumentNullException(nameof(type));
-
-        if (!type.IsGenericType)
-            return type.Name;
-
-        // Format generic type name, including arguments
-        var genericTypeName = type.Name.Substring(0, type.Name.IndexOf('`'));
-        var genericArguments = type.GetGenericArguments();
-        var argumentNames = string.Join(", ", genericArguments.Select(GetFriendlyName));
-
-        return $"{genericTypeName}<{argumentNames}>";
     }
 }

@@ -33,49 +33,49 @@ public class AppServiceRegistrationPipeline : ServiceRegistrationPipeline
     public AppServiceRegistrationPipeline()
     {
         // Add Options Support
-        AddRegistration((services, config) => services.AddOptions());
-        AddRegistration((services, config) => services.AddTransient(typeof(OptionsFactory<>)));
-        AddRegistration((services, config) => services.AddTransient(typeof(OptionsMonitor<>)));
+        AddRegistration(services => services.AddOptions());
+        AddRegistration(services => services.AddTransient(typeof(OptionsFactory<>)));
+        AddRegistration(services => services.AddTransient(typeof(OptionsMonitor<>)));
         // Add Options
         AddRegistration((services, config) => services.AddOptions<SqlServerOptions>(config));
         AddRegistration((services, config) => services.AddOptions<PaymentGatewayApiOptions>(config));
 
         // Add SQL Server and Repositories
-        AddRegistration((services, config) => services.AddSqlServer());
-        AddRegistration((services, config) => services.AddSingleton<IKeyMapper<Guid, Guid>, IdentityKeyMapper<Guid>>());
-        AddRegistration((services, config) => services.AddEntityAxisCommandAndQueryServicesFromAssembly<OrderQueryRepository>(ServiceLifetime.Scoped));
+        AddRegistration(services => services.AddSqlServer());
+        AddRegistration(services => services.AddSingleton<IKeyMapper<Guid, Guid>, IdentityKeyMapper<Guid>>());
+        AddRegistration(services => services.AddEntityAxisCommandAndQueryServicesFromAssembly<OrderQueryRepository>(ServiceLifetime.Scoped));
 
         // Add Services
-        AddRegistration((services, config) => services.AddScoped<IPaymentGateway, PaymentGateway>());
-        AddRegistration((services, config) => services.AddScoped<IMetricsService, MetricsService>());
+        AddRegistration(services => services.AddScoped<IPaymentGateway, PaymentGateway>());
+        AddRegistration(services => services.AddScoped<IMetricsService, MetricsService>());
 
         // Add AutoMapper and Profiles
-        AddRegistration((services, config) => services.AddAutoMapper());
+        AddRegistration(services => services.AddAutoMapper());
         // Profiles are registered in the DI Container to allow the Presentation Layer to register its own profiles without needing to know about the Infrastructure Layer's profiles.
-        AddRegistration((services, config) => services.AddSingleton<Profile, ApplicationMappingProfile>());
-        AddRegistration((services, config) => services.AddSingleton<Profile, InfrastructureMappingProfile>());
+        AddRegistration(services => services.AddSingleton<Profile, ApplicationMappingProfile>());
+        AddRegistration(services => services.AddSingleton<Profile, InfrastructureMappingProfile>());
 
         // Add HttpClients
-        AddRegistration((services, config) => services.AddPaymentGatewayApi());
+        AddRegistration(services => services.AddPaymentGatewayApi());
 
         // Add MediatR
-        AddRegistration((services, config) => services.AddMediatR(config => config.RegisterServicesFromAssembly(typeof(ProcessPaymentCommand).Assembly)));
-        AddRegistration((services, config) => services.AddValidatorsFromAssemblyContaining<ProcessPaymentCommandValidator>(ServiceLifetime.Scoped, null, false));
-        AddRegistration((services, config) => services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>)));
-        AddRegistration((services, config) => services.AddTransient(typeof(IPipelineBehavior<,>), typeof(MetricsAndLoggingPipelineBehavior<,>)));
+        AddRegistration(services => services.AddMediatR(config => config.RegisterServicesFromAssembly(typeof(ProcessPaymentCommand).Assembly)));
+        AddRegistration(services => services.AddValidatorsFromAssemblyContaining<ProcessPaymentCommandValidator>(ServiceLifetime.Scoped, null, false));
+        AddRegistration(services => services.AddTransient(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>)));
+        AddRegistration(services => services.AddTransient(typeof(IPipelineBehavior<,>), typeof(MetricsAndLoggingPipelineBehavior<,>)));
 
         // Add EntityAxis Handlers
-        AddRegistration((services, config) => services.AddEntityAxisCommandHandlers<User, Guid>(builder => builder.AddCreate<UserCreateModel>().AddUpdate<UserUpdateModel>()));
-        AddRegistration((services, config) => services.AddEntityAxisQueryHandlers<User, Guid>(builder => builder.AddAllQueries()));
-        AddRegistration((services, config) => services.AddEntityAxisQueryHandlers<Order, Guid>(builder => builder.AddAllQueries()));
-        AddRegistration((services, config) => services.AddEntityAxisQueryHandlers<Product, Guid>(builder => builder.AddAllQueries()));
-        AddRegistration((services, config) => services.AddEntityAxisQueryHandlers<ShoppingCart, Guid>(builder => builder.AddAllQueries()));
+        AddRegistration(services => services.AddEntityAxisCommandHandlers<User, Guid>(builder => builder.AddCreate<UserCreateModel>().AddUpdate<UserUpdateModel>()));
+        AddRegistration(services => services.AddEntityAxisQueryHandlers<User, Guid>(builder => builder.AddAllQueries()));
+        AddRegistration(services => services.AddEntityAxisQueryHandlers<Order, Guid>(builder => builder.AddAllQueries()));
+        AddRegistration(services => services.AddEntityAxisQueryHandlers<Product, Guid>(builder => builder.AddAllQueries()));
+        AddRegistration(services => services.AddEntityAxisQueryHandlers<ShoppingCart, Guid>(builder => builder.AddAllQueries()));
 
         // Add Health Checks
-        AddRegistration((services, config) => services.AddAppHealthChecks());
+        AddRegistration(services => services.AddAppHealthChecks());
 
         // Add System Clock
-        AddRegistration((services, config) => services.AddSingleton<ISystemClock, SystemClock>());
+        AddRegistration(services => services.AddSingleton<ISystemClock, SystemClock>());
     }
 
     private static readonly ILogger SerilogLogger =

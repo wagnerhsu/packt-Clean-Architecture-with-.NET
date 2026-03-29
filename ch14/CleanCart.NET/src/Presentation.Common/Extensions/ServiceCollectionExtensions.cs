@@ -24,6 +24,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(new ActivitySource(fvi.ProductName!, fvi.FileVersion));
         services.AddSingleton(new Meter(fvi.ProductName!, fvi.FileVersion));
 
+        // Used for conditional configuration of OpenTelemetry exporters based on the environment
+        bool envIsDevelopmentOrTest = AspNetEnvironmentHelper.IsDevelopment() || AspNetEnvironmentHelper.IsTest();
+
         // Example: Use OpenTelemetry with OTLP and the standalone Aspire Dashboard
         // https://learn.microsoft.com/dotnet/core/diagnostics/observability-otlp-example
         services.AddOpenTelemetry()
@@ -35,14 +38,10 @@ public static class ServiceCollectionExtensions
                     // Add ActivitySource for tracing
                     .AddSource(fvi.ProductName!);
 
-                if (!AspNetEnvironmentHelper.IsDevelopment() && !AspNetEnvironmentHelper.IsTest())
-                {
-                    builder.AddAzureMonitorTraceExporter();
-                }
-                else
-                {
+                if (envIsDevelopmentOrTest)
                     builder.AddOtlpExporter();
-                }
+                else
+                    builder.AddAzureMonitorTraceExporter();
             })
             .WithMetrics(builder =>
             {
@@ -54,16 +53,12 @@ public static class ServiceCollectionExtensions
                     .AddMeter("Microsoft.AspNetCore.Hosting")
                     .AddMeter("Microsoft.AspNetCore.Server.Kestrel");
 
-                if (!AspNetEnvironmentHelper.IsDevelopment() && !AspNetEnvironmentHelper.IsTest())
-                {
-                    builder.AddAzureMonitorMetricExporter();
-                }
-                else
-                {
+                if (envIsDevelopmentOrTest)
                     builder.AddOtlpExporter();
-                }
+                else
+                    builder.AddAzureMonitorMetricExporter();
             })
-            // Custom resource attributes should be added AFTER AzureMonitor to override the default ResourceDetectors.
+            // Custom resource attributes should be added AFTER AzureMonitor to override the default resource detectors.
             .ConfigureResource(builder =>
             {
                 // Learn About OpenTelemetry Semantic Conventions
